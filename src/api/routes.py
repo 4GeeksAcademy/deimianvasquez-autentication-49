@@ -3,12 +3,13 @@ This module takes care of starting the API Server, Loading the DB and Adding the
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
 from api.models import db, User
-from api.utils import generate_sitemap, APIException
+from api.utils import generate_sitemap, APIException, send_email
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from base64 import b64encode
 import os
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from datetime import timedelta
 
 
 api = Blueprint('api', __name__)
@@ -30,18 +31,18 @@ def check_password(pass_hash, password, salt):
 # final manejo de hash de contraseña
 
 
+expires_in_minutes = 10
+expires_delta = timedelta(minutes=expires_in_minutes)
+
+
 # Allow CORS requests to this API
 CORS(api)
 
 
-@api.route('/hello', methods=['POST', 'GET'])
+@api.route('/healt-check', methods=['GET'])
 def handle_hello():
 
-    response_body = {
-        "message": "Hello! I'm a message that came from the backend, check the network tab on the google inspector and you will see the GET request"
-    }
-
-    return jsonify(response_body), 200
+    return jsonify("ok"), 200
 
 
 @api.route("/register", methods=["POST"])
@@ -90,7 +91,7 @@ def handle_login():
         else:
             if check_password(user.password, password, user.salt):
                 # debems generar el token
-                token = create_access_token(identity=user.id)
+                token = create_access_token(identity=str(user.id))
 
                 return jsonify({
                     "token": token
@@ -98,3 +99,80 @@ def handle_login():
             else:
                 return jsonify("Bad password"), 400
 
+
+@api.route("/user", methods=["GET"])
+@jwt_required()
+def get_all_users():
+    users = User.query.all()
+
+    return jsonify(list(map(lambda item: item.serialize(), users))), 200
+
+
+@api.route("/me", methods=["GET"])
+@jwt_required()  # proceso solo consultas con token
+def get_one_user():
+    user_id = get_jwt_identity()
+
+    user = User.query.get(user_id)
+
+    if user is None:
+        return jsonify("User not found"), 404
+
+    return jsonify(user.serialize())
+
+
+@api.route("/reset-password", methods=["POST"])
+def reset_password():
+    # necesitamos el correo para evviar el link de recuperación
+    body = request.json  # dvasquez@4geeksacademy.com
+
+    user = User.query.filter_by(email=body).one_or_none()
+
+    if user is None:
+        return jsonify("user not found"), 404
+
+    access_token = create_access_token(
+        identity=body, expires_delta=expires_delta)
+
+    message = f"""
+        <a href="https://humble-guide-ppgwrqgxxvjfr4w9-3000.app.github.dev/update-pass?token?{access_token}">recuperaar contraseña</a>
+    """
+
+    data = {
+        "subject": "Recuperación de contraseña",
+        "to": body,
+        "message": message
+    }
+
+    sended_email = send_email(
+        data.get("subject"), data.get("to"), data.get("message"))
+
+    if sended_email:
+        return jsonify("Message dended"), 200
+    else:
+        return jsonify("Error"), 200
+
+
+@api.route("/update-password", methods=["PUT"])
+@jwt_required()
+def update_password():
+    user_token_email = get_jwt_identity()
+    password = request.json
+
+    user = User.query.filter_by(email=user_token_email).first()
+
+    if user is not None:
+        salt = b64encode(os.urandom(32)).decode("utf-8")
+        password = set_password(password, salt)
+
+        user.salt = salt
+        user.password = password
+
+        try:
+            db.session.commit()
+            return jsonify("password changed successfuly"), 201
+        except Exception as error:
+            db.session.rollback()
+            return jsonify("Error"), 500
+
+    print(user.serialize)
