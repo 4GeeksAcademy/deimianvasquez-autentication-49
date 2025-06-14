@@ -134,8 +134,9 @@ def reset_password():
     access_token = create_access_token(
         identity=body, expires_delta=expires_delta)
 
+# https://studious-system-qp94qg9wwvp2xvpj-3000.app.github.dev/password-update?token=jdjdjdjdjdjdjdjdjd
     message = f"""
-        <a href="https://humble-guide-ppgwrqgxxvjfr4w9-3000.app.github.dev/update-pass?token?{access_token}">recuperaar contraseña</a>
+        <a href="{os.getenv("FRONTEND_URL")}/password-update?token={access_token}">recuperaar contraseña</a>
     """
 
     data = {

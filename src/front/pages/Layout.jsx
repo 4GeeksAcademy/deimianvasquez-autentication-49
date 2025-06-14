@@ -8,8 +8,8 @@ export const Layout = () => {
     return (
         <ScrollToTop>
             <Navbar />
-                <Outlet />
-            <Footer />
+            <Outlet />
+            {/* <Footer /> */}
         </ScrollToTop>
     )
 }
