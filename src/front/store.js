@@ -14,6 +14,7 @@ export const initialStore = () => {
       },
     ],
     token: localStorage.getItem("token") || null,
+    me: "",
   };
 };
 
@@ -43,6 +44,12 @@ export default function storeReducer(store, action = {}) {
         todos: store.todos.map((todo) =>
           todo.id === id ? { ...todo, background: color } : todo
         ),
+      };
+
+    case "ADD_ME":
+      return {
+        ...store,
+        me: action.payload,
       };
     default:
       throw Error("Unknown action.");

@@ -10,7 +10,7 @@ from base64 import b64encode
 import os
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import timedelta
-
+import cloudinary.uploader as uploader
 
 api = Blueprint('api', __name__)
 
@@ -47,29 +47,80 @@ def handle_hello():
 
 @api.route("/register", methods=["POST"])
 def add_user():
-    data = request.json  # recimos dados del body
-    email = data.get("email", None)
-    lastname = data.get("lastname", None)
-    password = data.get("password", None)
-    salt = b64encode(os.urandom(32)).decode("utf-8")
+    data_form = request.form
+    data_files = request.files
 
-    if email is None or password is None or lastname is None:
-        return jsonify("You a need an password, lastname and a email"), 400
+    data = {
+        "lastname": data_form.get("lastname", None),
+        "email": data_form.get("email", "None"),
+        "password": data_form.get("password", None),
+        "image": data_files.get("avatar", None),
+        "public_id": ""
+    }
+
+    print(data)
+
+    if data["email"] is None or data["lastname"] is None or data["password"] is None:
+        return jsonify("You a need an password, lastname and email"), 400
+
+    user = User.query.filter_by(email=data["email"]).one_or_none()
+
+    print(user, "user")
+
+    if user is not None:
+        return jsonify("Email already registred"), 400
+
+    salt = b64encode(os.urandom(32)).decode("utf-8")
+    password = set_password(data["password"], salt)
+
+    # Subir imagen a cloudinary
+
+    if data["image"] is not None:
+        result_image = uploader.upload(data["image"])
+
+        data["image"] = result_image["secure_url"]
+        # data["public_id"] = result_image["public_id"]
 
     user = User()
-    user.email = email
-    user.lastname = lastname
-    user.password = set_password(password, salt)
+    user.email = data["email"]
+    user.lastname = data["lastname"]
+    user.password = password
     user.salt = salt
-
-    db.session.add(user)
-
+    user.avatar = data["image"]
     try:
+        db.session.add(user)
         db.session.commit()
         return jsonify("User created"), 201
     except Exception as error:
         db.session.rollback()
-        return jsonify(f"Error:  {error.args}"), 500
+        return jsonify(f"Error: {error.args}")
+
+    # VERSION ANTES DE CLOUDINARY
+    # data = request.json  # recimos dados del body
+    # email = data.get("email", None)
+    # lastname = data.get("lastname", None)
+    # password = data.get("password", None)
+    # salt = b64encode(os.urandom(32)).decode("utf-8")
+
+    # if email is None or password is None or lastname is None:
+    #     return jsonify("You a need an password, lastname and a email"), 400
+
+    # user = User()
+    # user.email = email
+    # user.lastname = lastname
+    # user.password = set_password(password, salt)
+    # user.salt = salt
+
+    # db.session.add(user)
+
+    # try:
+    #     db.session.commit()
+    #     return jsonify("User created"), 201
+    # except Exception as error:
+    #     db.session.rollback()
+    #     return jsonify(f"Error:  {error.args}"), 500
+
+    return jsonify("This endpoint is not implemented yet"), 501
 
 
 @api.route("/login", methods=["POST"])

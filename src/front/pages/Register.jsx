@@ -28,15 +28,23 @@ export const Register = () => {
     const handleSubmit = async (event) => {
         event.preventDefault() // quitar burbujeo
         // validar que el formulario tenga todos los datos 
+
+        const formData = new FormData()
+        formData.append("lastname", user.lastname)
+        formData.append("email", user.email)
+        formData.append("password", user.password)
+        formData.append("avatar", user.avatar)
+
+
         const url = import.meta.env.VITE_BACKEND_URL;
 
 
         const response = await fetch(`${url}/register`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(user)
+            // headers: {
+            //     "Content-Type": "application/json"
+            // },
+            body: formData
         })
 
         if (response.status === 201) {
@@ -95,6 +103,12 @@ export const Register = () => {
                                 className="form-control"
                                 id="btnAvatar"
                                 name="avatar"
+                                onChange={(event) => {
+                                    setUser({
+                                        ...user,
+                                        avatar: event.target.files[0]
+                                    })
+                                }}
                             />
                         </div>
 
